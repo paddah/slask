@@ -33,6 +33,7 @@
         <button id="start" class="primary">Starta mätning</button>
         <button id="stop" disabled>Stoppa</button>
         <button id="copy" disabled>Kopiera värden</button>
+        <button id="force" title="Tvinga prompt via getCurrentPosition">Begär plats</button>
         <span id="status" class="warn">Vänta: kräver plats-tillstånd</span>
       </div>
       <div class="row" id="permRow" style="display:none">
@@ -40,6 +41,8 @@
         <code id="perm">okänt</code>
       </div>
       <div class="kv">
+        <div class="label">Secure context</div><div class="value"><code id="secure">–</code></div>
+        <div class="label">Origin</div><div class="value"><code id="origin">–</code></div>
         <div class="label">Latitud</div><div class="value"><code id="lat">–</code></div>
         <div class="label">Longitud</div><div class="value"><code id="lon">–</code></div>
         <div class="label">Noggrannhet (m)</div><div class="value"><code id="acc">–</code></div>
@@ -57,6 +60,8 @@
     const ui = {$1dbgCount: document.getElementById('dbgCount'),
       perm: document.getElementById('perm'),
       permRow: document.getElementById('permRow'),
+      secure: document.getElementById('secure'),
+      origin: document.getElementById('origin'),
     };
 
     let watchId = null;
@@ -71,6 +76,16 @@
     function setStatus(text, cls) {
       ui.status.textContent = text;
       ui.status.className = cls || '';
+    }
+
+    function setPerm(text){
+      ui.perm.textContent = text;
+      ui.permRow.style.display = 'flex';
+    }
+
+    function showEnv(){
+      ui.secure.textContent = window.isSecureContext ? 'ja' : 'nej';
+      ui.origin.textContent = location.origin;
     }
 
     function setPerm(text){
@@ -203,7 +218,15 @@
         start();
       }
     });
+
+    // Init
+    showEnv();
+    ui.force.addEventListener('click', async ()=>{
+      setStatus('Begär plats (direkt)...', 'warn');
+      navigator.geolocation.getCurrentPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+    });
+      }
+    });
   </script>
 </body>
 </html>
-
