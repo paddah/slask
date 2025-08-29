@@ -35,6 +35,10 @@
         <button id="copy" disabled>Kopiera värden</button>
         <span id="status" class="warn">Vänta: kräver plats-tillstånd</span>
       </div>
+      <div class="row" id="permRow" style="display:none">
+        <span class="label">Tillstånd</span>
+        <code id="perm">okänt</code>
+      </div>
       <div class="kv">
         <div class="label">Latitud</div><div class="value"><code id="lat">–</code></div>
         <div class="label">Longitud</div><div class="value"><code id="lon">–</code></div>
@@ -45,25 +49,14 @@
         <div class="label">Riktning (°)</div><div class="value"><code id="head">–</code></div>
         <div class="label">Senast uppdaterad</div><div class="value"><code id="ts">–</code></div>
       </div>
-      <div class="foot">Tips: Kör över <strong>https</strong> (eller <code>localhost</code>) för att plats ska fungera. iOS kräver oftast ett knapptryck för att begära tillstånd.</div>
+      <div class="foot">Tips: Kör över <strong>https</strong> (eller <code>localhost</code>) för att plats ska fungera. iOS kräver ett knapptryck för att visa prompten. Om du råkat neka: Inställningar ➜ Integritet & säkerhet ➜ Platstjänster ➜ <em>Safari-webbplatser</em> → "När appen används" och slå på "Exakt plats".</div>
     </div>
   </div>
 
   <script>
-    const ui = {
-      start: document.getElementById('start'),
-      stop: document.getElementById('stop'),
-      copy: document.getElementById('copy'),
-      status: document.getElementById('status'),
-      lat: document.getElementById('lat'),
-      lon: document.getElementById('lon'),
-      acc: document.getElementById('acc'),
-      alt: document.getElementById('alt'),
-      altacc: document.getElementById('altacc'),
-      spd: document.getElementById('spd'),
-      head: document.getElementById('head'),
-      ts: document.getElementById('ts'),
-      dbgCount: document.getElementById('dbgCount'),
+    const ui = {$1dbgCount: document.getElementById('dbgCount'),
+      perm: document.getElementById('perm'),
+      permRow: document.getElementById('permRow'),
     };
 
     let watchId = null;
@@ -78,6 +71,11 @@
     function setStatus(text, cls) {
       ui.status.textContent = text;
       ui.status.className = cls || '';
+    }
+
+    function setPerm(text){
+      ui.perm.textContent = text;
+      ui.permRow.style.display = 'flex';
     }
 
     function bumpCounter(){
@@ -121,7 +119,7 @@
       setStatus(map[err.code] || (err.message || 'Platsfel'), 'err');
     }
 
-    function start(){
+    async function start(){
       if (!('geolocation' in navigator)) {
         setStatus('Den här webbläsaren saknar geolokalisering', 'err');
         return;
@@ -131,22 +129,42 @@
         return;
       }
       if (watchId !== null) return;
+
+      // Försök läsa tillstånd via Permissions API (stöds inte överallt, men bra där det finns)
+      try {
+        if (navigator.permissions && navigator.permissions.query) {
+          const p = await navigator.permissions.query({ name: 'geolocation' });
+          setPerm(p.state); // 'granted' | 'prompt' | 'denied'
+          p.onchange = () => setPerm(p.state);
+        }
+      } catch {}
+
       setStatus('Begär plats…', 'warn');
-      // Primär: kontinuerliga uppdateringar
-      watchId = navigator.geolocation.watchPosition(onPos, onErr, {
-        enableHighAccuracy: true,
-        maximumAge: 1000,   // tillåt upp till 1 s cache
-        timeout: 20000
-      });
-      // Fallback: polling med getCurrentPosition om watchPosition stagnerar på vissa desktop
-      pollId = setInterval(() => {
-        navigator.geolocation.getCurrentPosition(onPos, (e)=>{
-          console.debug('[geo] poll error', e);
-        }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
-      }, 2000);
-      ui.start.disabled = true;
-      ui.stop.disabled = false;
-      ui.copy.disabled = false;
+
+      // Trigga system-prompten direkt på klick via getCurrentPosition (nödvändigt på iOS)
+      navigator.geolocation.getCurrentPosition((first)=>{
+        onPos(first);
+        // Efter första fix: starta kontinuerlig bevakning
+        watchId = navigator.geolocation.watchPosition(onPos, onErr, {
+          enableHighAccuracy: true,
+          maximumAge: 1000,
+          timeout: 20000
+        });
+        // Fallback-polling
+        pollId = setInterval(() => {
+          navigator.geolocation.getCurrentPosition(onPos, ()=>{}, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+        }, 2000);
+        ui.start.disabled = true;
+        ui.stop.disabled = false;
+        ui.copy.disabled = false;
+      }, (err)=>{
+        onErr(err);
+        // Ge tydlig hjälp för iOS/Safari när åtkomst är nekad
+        if (err.code === 1) {
+          setPerm('denied');
+          setStatus('Plats nekades – öppna Inställningar ➜ Integritet & säkerhet ➜ Platstjänster ➜ Safari-webbplatser: "När appen används" och slå på "Exakt plats". Öppna sedan sidan igen.', 'err');
+        }
+      }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
     }
 
     function stop(){
@@ -188,3 +206,4 @@
   </script>
 </body>
 </html>
+
