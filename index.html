@@ -6,7 +6,6 @@
   <title>Lat/Lon i realtid</title>
   <style>
     :root { --bg:#0b0f14; --fg:#e6edf3; --muted:#9aa6b2; --card:#111826; --accent:#4da3ff; }
-    html,body{height:100%}
     body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;}
     .wrap{max-width:720px;margin:0 auto;padding:24px}
     .card{background:var(--card);border:1px solid #1f2937;border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
@@ -23,6 +22,7 @@
     .warn{color:#ffd166}
     .err{color:#ff6b6b}
     .foot{color:var(--muted);font-size:13px;margin-top:12px}
+    .helpbox{margin-top:16px;padding:12px;border:1px solid #444;border-radius:12px;background:#1b2535;color:#ffd166;display:none}
   </style>
 </head>
 <body>
@@ -33,7 +33,7 @@
         <button id="start" class="primary">Starta mätning</button>
         <button id="stop" disabled>Stoppa</button>
         <button id="copy" disabled>Kopiera värden</button>
-        <button id="force" title="Tvinga prompt via getCurrentPosition">Begär plats</button>
+        <button id="force">Begär plats</button>
         <span id="status" class="warn">Vänta: kräver plats-tillstånd</span>
       </div>
       <div class="row" id="permRow" style="display:none">
@@ -52,20 +52,36 @@
         <div class="label">Riktning (°)</div><div class="value"><code id="head">–</code></div>
         <div class="label">Senast uppdaterad</div><div class="value"><code id="ts">–</code></div>
       </div>
+      <div id="help" class="helpbox"></div>
       <div class="foot">Tips: Kör över <strong>https</strong> (eller <code>localhost</code>) för att plats ska fungera. iOS kräver ett knapptryck för att visa prompten. Om du råkat neka: Inställningar ➜ Integritet & säkerhet ➜ Platstjänster ➜ <em>Safari-webbplatser</em> → "När appen används" och slå på "Exakt plats".</div>
     </div>
   </div>
 
   <script>
-    const ui = {$1dbgCount: document.getElementById('dbgCount'),
+    const ui = {
+      start: document.getElementById('start'),
+      stop: document.getElementById('stop'),
+      copy: document.getElementById('copy'),
+      force: document.getElementById('force'),
+      status: document.getElementById('status'),
+      lat: document.getElementById('lat'),
+      lon: document.getElementById('lon'),
+      acc: document.getElementById('acc'),
+      alt: document.getElementById('alt'),
+      altacc: document.getElementById('altacc'),
+      spd: document.getElementById('spd'),
+      head: document.getElementById('head'),
+      ts: document.getElementById('ts'),
+      dbgCount: document.getElementById('dbgCount'),
       perm: document.getElementById('perm'),
       permRow: document.getElementById('permRow'),
       secure: document.getElementById('secure'),
       origin: document.getElementById('origin'),
+      help: document.getElementById('help')
     };
 
     let watchId = null;
-    let pollId = null; // fallback-polling
+    let pollId = null;
     let last = null;
     let updates = 0;
 
@@ -81,16 +97,14 @@
     function setPerm(text){
       ui.perm.textContent = text;
       ui.permRow.style.display = 'flex';
+      if(text==='denied'){
+        showHelp();
+      }
     }
 
     function showEnv(){
       ui.secure.textContent = window.isSecureContext ? 'ja' : 'nej';
       ui.origin.textContent = location.origin;
-    }
-
-    function setPerm(text){
-      ui.perm.textContent = text;
-      ui.permRow.style.display = 'flex';
     }
 
     function bumpCounter(){
@@ -110,7 +124,7 @@
         head: c.heading,
         ts: pos.timestamp
       };
-      ui.lat.textContent = fmt(c.latitude, 7); // ~1.1 cm vid 7 dec
+      ui.lat.textContent = fmt(c.latitude, 7);
       ui.lon.textContent = fmt(c.longitude, 7);
       ui.acc.textContent = fmt(c.accuracy, 1);
       ui.alt.textContent = c.altitude == null ? '–' : fmt(c.altitude, 2);
@@ -120,18 +134,24 @@
       ui.ts.textContent = new Date(pos.timestamp).toLocaleString();
       bumpCounter();
       setStatus('Aktiv – uppdaterar i realtid', 'ok');
-      console.debug('[geo] update', last);
     }
 
     function onErr(err){
       console.error('[geo] error', err);
-      // Visa tydlig orsak
-      const map = {
-        1: 'Plats nekades – tillåt i webbläsaren',
-        2: 'Position otillgänglig – testa utomhus',
-        3: 'Tidsgräns – försök igen',
-      };
-      setStatus(map[err.code] || (err.message || 'Platsfel'), 'err');
+      setStatus(err.message || 'Platsfel', 'err');
+      if(err.code===1){
+        setPerm('denied');
+        showHelp();
+      }
+    }
+
+    function showHelp(){
+      ui.help.style.display='block';
+      ui.help.innerHTML = `<strong>Så här aktiverar du plats för denna sida:</strong><ul>
+        <li>I Safari: tryck <em>aA</em> vid adressfältet → Webbplatsinställningar → Plats: Tillåt</li>
+        <li>Eller gå till Inställningar → Safari → Inställningar för webbplatser → Plats, hitta din sida och välj Tillåt</li>
+        <li>Om du lagt till sidan på hemskärmen: Inställningar → Integritet & säkerhet → Platstjänster → leta efter din Web App och välj När appen används + Exakt plats</li>
+      </ul>`;
     }
 
     async function start(){
@@ -145,27 +165,19 @@
       }
       if (watchId !== null) return;
 
-      // Försök läsa tillstånd via Permissions API (stöds inte överallt, men bra där det finns)
       try {
         if (navigator.permissions && navigator.permissions.query) {
           const p = await navigator.permissions.query({ name: 'geolocation' });
-          setPerm(p.state); // 'granted' | 'prompt' | 'denied'
+          setPerm(p.state);
           p.onchange = () => setPerm(p.state);
         }
       } catch {}
 
       setStatus('Begär plats…', 'warn');
 
-      // Trigga system-prompten direkt på klick via getCurrentPosition (nödvändigt på iOS)
       navigator.geolocation.getCurrentPosition((first)=>{
         onPos(first);
-        // Efter första fix: starta kontinuerlig bevakning
-        watchId = navigator.geolocation.watchPosition(onPos, onErr, {
-          enableHighAccuracy: true,
-          maximumAge: 1000,
-          timeout: 20000
-        });
-        // Fallback-polling
+        watchId = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
         pollId = setInterval(() => {
           navigator.geolocation.getCurrentPosition(onPos, ()=>{}, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
         }, 2000);
@@ -174,11 +186,6 @@
         ui.copy.disabled = false;
       }, (err)=>{
         onErr(err);
-        // Ge tydlig hjälp för iOS/Safari när åtkomst är nekad
-        if (err.code === 1) {
-          setPerm('denied');
-          setStatus('Plats nekades – öppna Inställningar ➜ Integritet & säkerhet ➜ Platstjänster ➜ Safari-webbplatser: "När appen används" och slå på "Exakt plats". Öppna sedan sidan igen.', 'err');
-        }
       }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
     }
 
@@ -211,22 +218,18 @@
     ui.start.addEventListener('click', start);
     ui.stop.addEventListener('click', stop);
     ui.copy.addEventListener('click', copy);
+    ui.force.addEventListener('click', ()=>{
+      setStatus('Begär plats (direkt)...', 'warn');
+      navigator.geolocation.getCurrentPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+    });
 
-    // Försök autostarta om sidan återaktiveras och tidigare var igång
     document.addEventListener('visibilitychange', ()=>{
       if (document.visibilityState === 'visible' && watchId === null && ui.start.disabled) {
         start();
       }
     });
 
-    // Init
     showEnv();
-    ui.force.addEventListener('click', async ()=>{
-      setStatus('Begär plats (direkt)...', 'warn');
-      navigator.geolocation.getCurrentPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
-    });
-      }
-    });
   </script>
 </body>
 </html>
