@@ -33,7 +33,6 @@
         <button id="start" class="primary">Starta mätning</button>
         <button id="stop" disabled>Stoppa</button>
         <button id="copy" disabled>Kopiera värden</button>
-        <button id="force">Begär plats</button>
         <span id="status" class="warn">Vänta: kräver plats-tillstånd</span>
       </div>
       <div class="row" id="permRow" style="display:none">
@@ -53,7 +52,7 @@
         <div class="label">Senast uppdaterad</div><div class="value"><code id="ts">–</code></div>
       </div>
       <div id="help" class="helpbox"></div>
-      <div class="foot">Tips: Kör över <strong>https</strong> (eller <code>localhost</code>) för att plats ska fungera. iOS kräver ett knapptryck för att visa prompten. Om du råkat neka: Inställningar ➜ Integritet & säkerhet ➜ Platstjänster ➜ <em>Safari-webbplatser</em> → "När appen används" och slå på "Exakt plats".</div>
+      <div class="foot">Tips: Kör över <strong>https</strong> (eller <code>localhost</code>) för att plats ska fungera. iOS kräver att <em>första</em> anropet sker direkt i knapptrycket. Om du råkat neka: Inställningar ➜ Integritet & säkerhet ➜ Platstjänster ➜ <em>Safari-webbplatser</em> → "När appen används" och slå på "Exakt plats".</div>
     </div>
   </div>
 
@@ -62,7 +61,6 @@
       start: document.getElementById('start'),
       stop: document.getElementById('stop'),
       copy: document.getElementById('copy'),
-      force: document.getElementById('force'),
       status: document.getElementById('status'),
       lat: document.getElementById('lat'),
       lon: document.getElementById('lon'),
@@ -81,7 +79,6 @@
     };
 
     let watchId = null;
-    let pollId = null;
     let last = null;
     let updates = 0;
 
@@ -92,19 +89,6 @@
     function setStatus(text, cls) {
       ui.status.textContent = text;
       ui.status.className = cls || '';
-    }
-
-    function setPerm(text){
-      ui.perm.textContent = text;
-      ui.permRow.style.display = 'flex';
-      if(text==='denied'){
-        showHelp();
-      }
-    }
-
-    function showEnv(){
-      ui.secure.textContent = window.isSecureContext ? 'ja' : 'nej';
-      ui.origin.textContent = location.origin;
     }
 
     function bumpCounter(){
@@ -140,21 +124,16 @@
       console.error('[geo] error', err);
       setStatus(err.message || 'Platsfel', 'err');
       if(err.code===1){
-        setPerm('denied');
-        showHelp();
+        ui.help.style.display='block';
+        ui.help.innerHTML = `<strong>Så här aktiverar du plats för denna sida:</strong><ul>
+          <li>I Safari: tryck <em>aA</em> vid adressfältet → Webbplatsinställningar → Plats: Tillåt</li>
+          <li>Eller gå till Inställningar → Safari → Inställningar för webbplatser → Plats, hitta din sida och välj Tillåt</li>
+          <li>Om du lagt till sidan på hemskärmen: Inställningar → Integritet & säkerhet → Platstjänster → leta efter din Web App och välj När appen används + Exakt plats</li>
+        </ul>`;
       }
     }
 
-    function showHelp(){
-      ui.help.style.display='block';
-      ui.help.innerHTML = `<strong>Så här aktiverar du plats för denna sida:</strong><ul>
-        <li>I Safari: tryck <em>aA</em> vid adressfältet → Webbplatsinställningar → Plats: Tillåt</li>
-        <li>Eller gå till Inställningar → Safari → Inställningar för webbplatser → Plats, hitta din sida och välj Tillåt</li>
-        <li>Om du lagt till sidan på hemskärmen: Inställningar → Integritet & säkerhet → Platstjänster → leta efter din Web App och välj När appen används + Exakt plats</li>
-      </ul>`;
-    }
-
-    async function start(){
+    ui.start.addEventListener('click', () => {
       if (!('geolocation' in navigator)) {
         setStatus('Den här webbläsaren saknar geolokalisering', 'err');
         return;
@@ -165,45 +144,34 @@
       }
       if (watchId !== null) return;
 
-      try {
-        if (navigator.permissions && navigator.permissions.query) {
-          const p = await navigator.permissions.query({ name: 'geolocation' });
-          setPerm(p.state);
-          p.onchange = () => setPerm(p.state);
-        }
-      } catch {}
-
       setStatus('Begär plats…', 'warn');
 
+      // iOS-säkert: första getCurrentPosition direkt i klicket
       navigator.geolocation.getCurrentPosition((first)=>{
         onPos(first);
-        watchId = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
-        pollId = setInterval(() => {
-          navigator.geolocation.getCurrentPosition(onPos, ()=>{}, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
-        }, 2000);
+        // Starta kontinuerlig bevakning
+        watchId = navigator.geolocation.watchPosition(onPos, onErr, {
+          enableHighAccuracy: true,
+          maximumAge: 1000,
+          timeout: 20000
+        });
         ui.start.disabled = true;
         ui.stop.disabled = false;
         ui.copy.disabled = false;
-      }, (err)=>{
-        onErr(err);
-      }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
-    }
+      }, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+    });
 
-    function stop(){
+    ui.stop.addEventListener('click', () => {
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
         watchId = null;
       }
-      if (pollId !== null) {
-        clearInterval(pollId);
-        pollId = null;
-      }
       setStatus('Pausad', 'warn');
       ui.start.disabled = false;
       ui.stop.disabled = true;
-    }
+    });
 
-    async function copy(){
+    ui.copy.addEventListener('click', async () => {
       if (!last) return;
       const text = `lat=${last.lat}\nlon=${last.lon}\nacc=${last.acc} m\nalt=${last.alt ?? 'n/a'} m\naltAcc=${last.altacc ?? 'n/a'} m\nspeed=${last.spd ?? 'n/a'} m/s\nheading=${last.head ?? 'n/a'}°\nwhen=${new Date(last.ts).toISOString()}`;
       try {
@@ -213,21 +181,12 @@
       } catch (e) {
         setStatus('Kunde inte kopiera', 'err');
       }
+    });
+
+    function showEnv(){
+      ui.secure.textContent = window.isSecureContext ? 'ja' : 'nej';
+      ui.origin.textContent = location.origin;
     }
-
-    ui.start.addEventListener('click', start);
-    ui.stop.addEventListener('click', stop);
-    ui.copy.addEventListener('click', copy);
-    ui.force.addEventListener('click', ()=>{
-      setStatus('Begär plats (direkt)...', 'warn');
-      navigator.geolocation.getCurrentPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
-    });
-
-    document.addEventListener('visibilitychange', ()=>{
-      if (document.visibilityState === 'visible' && watchId === null && ui.start.disabled) {
-        start();
-      }
-    });
 
     showEnv();
   </script>
