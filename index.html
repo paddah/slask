@@ -1,194 +1,554 @@
 <!doctype html>
-<html lang="sv">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Lat/Lon i realtid</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Dingbat Killer — Browser Multiplayer</title>
   <style>
-    :root { --bg:#0b0f14; --fg:#e6edf3; --muted:#9aa6b2; --card:#111826; --accent:#4da3ff; }
-    body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;}
-    .wrap{max-width:720px;margin:0 auto;padding:24px}
-    .card{background:var(--card);border:1px solid #1f2937;border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
-    h1{font-size:20px;margin:0 0 12px}
-    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:12px 0}
-    button{appearance:none;border:1px solid #2b3a55;background:#162237;color:var(--fg);padding:10px 14px;border-radius:12px;font-weight:600;cursor:pointer}
-    button.primary{background:var(--accent);border-color:transparent;color:#04121f}
-    button:disabled{opacity:.6;cursor:not-allowed}
-    code{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;font-size:15px}
-    .kv{display:grid;grid-template-columns:160px 1fr;gap:10px 16px;margin-top:8px}
-    .label{color:var(--muted)}
-    .value{font-variant-numeric:tabular-nums lining-nums}
-    .ok{color:#62d392}
-    .warn{color:#ffd166}
-    .err{color:#ff6b6b}
-    .foot{color:var(--muted);font-size:13px;margin-top:12px}
-    .helpbox{margin-top:16px;padding:12px;border:1px solid #444;border-radius:12px;background:#1b2535;color:#ffd166;display:none}
+    :root {
+      --bg: #0b0f14; --fg:#e9eef5; --muted:#94a3b8; --accent:#64d2ff; --good:#22c55e; --warn:#f59e0b; --bad:#ef4444;
+      --card:#121821; --btn:#1f2937; --btn2:#0f172a;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--fg); }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 20px 16px 60px; }
+    h1 { font-size: 24px; margin: 16px 0; }
+    h2 { font-size: 18px; margin: 16px 0 8px; color: var(--accent); }
+    p, label, small { color: var(--muted); }
+    .card { background: var(--card); border: 1px solid #1f2937; border-radius: 14px; padding: 16px; margin: 12px 0; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    input, select { width: 100%; background: #0f172a; color: var(--fg); border: 1px solid #1f2737; border-radius: 10px; padding: 12px 12px; font-size: 16px; }
+    button { appearance: none; border: 0; padding: 12px 16px; border-radius: 12px; background: var(--btn); color: var(--fg); font-size: 16px; cursor: pointer; }
+    button.primary { background: var(--accent); color: #001219; font-weight: 700; }
+    button.ghost { background: var(--btn2); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .center { text-align: center; }
+    .pill { display: inline-block; padding: 6px 10px; border-radius: 999px; font-size: 12px; background: #0f172a; border: 1px solid #243447; }
+    .good { color: var(--good); }
+    .bad { color: var(--bad); }
+    .warn { color: var(--warn); }
+    .metric { font-size: 28px; line-height: 1.2; font-weight: 700; }
+    .sub { font-size: 12px; color: var(--muted); }
+    .divider { height: 1px; background: #1f2937; margin: 16px 0; }
+    .sticky { position: sticky; bottom: 0; background: linear-gradient(180deg, transparent, rgba(11,15,20,0.9) 30%, rgba(11,15,20,1)); padding-top: 16px; }
+    .hint { font-size: 13px; color: var(--muted); }
+    .compass { width: 140px; height: 140px; border-radius: 50%; border: 2px solid #223046; margin: 8px auto; position: relative; }
+    .needle { position: absolute; left: 50%; top: 50%; width: 2px; height: 52%; background: var(--accent); transform-origin: bottom center; transform: translate(-50%, -100%) rotate(0deg); }
+    .northDot { position: absolute; width: 8px; height: 8px; background: var(--bad); border-radius: 50%; left: 50%; top: 4px; transform: translateX(-50%); }
+    .toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); background: #111827; border: 1px solid #243447; color: var(--fg); padding: 10px 14px; border-radius: 999px; font-size: 14px; display: none; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+    .hold { position: relative; overflow: hidden; }
+    .hold::after { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: var(--hold, 0%); background: rgba(255,255,255,0.25); transition: width 0.1s linear; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="card">
-      <h1>Lat/Lon i realtid <small id="dbgCount" style="font-size:12px;color:#9aa6b2;margin-left:8px"></small></h1>
-      <div class="row">
-        <button id="start" class="primary">Starta mätning</button>
-        <button id="stop" disabled>Stoppa</button>
-        <button id="copy" disabled>Kopiera värden</button>
-        <span id="status" class="warn">Vänta: kräver plats-tillstånd</span>
+    <h1>🕹️ Dingbat Killer</h1>
+    <p>A dead-simple multiplayer geolocation “tag” game. Create a game, join with a code, track your target, and tag them when you’re close enough.</p>
+
+    <!-- Screens -->
+    <div id="screen-welcome" class="card">
+      <h2>Start</h2>
+      <div class="grid-2">
+        <button id="btn-new" class="primary">Create new game</button>
+        <button id="btn-join" class="ghost">Join a game</button>
       </div>
-      <div class="row" id="permRow" style="display:none">
-        <span class="label">Tillstånd</span>
-        <code id="perm">okänt</code>
-      </div>
-      <div class="kv">
-        <div class="label">Secure context</div><div class="value"><code id="secure">–</code></div>
-        <div class="label">Origin</div><div class="value"><code id="origin">–</code></div>
-        <div class="label">Latitud</div><div class="value"><code id="lat">–</code></div>
-        <div class="label">Longitud</div><div class="value"><code id="lon">–</code></div>
-        <div class="label">Noggrannhet (m)</div><div class="value"><code id="acc">–</code></div>
-        <div class="label">Höjd (m)</div><div class="value"><code id="alt">–</code></div>
-        <div class="label">Höjd‑noggr. (m)</div><div class="value"><code id="altacc">–</code></div>
-        <div class="label">Fart (m/s)</div><div class="value"><code id="spd">–</code></div>
-        <div class="label">Riktning (°)</div><div class="value"><code id="head">–</code></div>
-        <div class="label">Senast uppdaterad</div><div class="value"><code id="ts">–</code></div>
-      </div>
-      <div id="help" class="helpbox"></div>
-      <div class="foot">Tips: Kör över <strong>https</strong> (eller <code>localhost</code>) för att plats ska fungera. iOS kräver att <em>första</em> anropet sker direkt i knapptrycket. Om du råkat neka: Inställningar ➜ Integritet & säkerhet ➜ Platstjänster ➜ <em>Safari-webbplatser</em> → "När appen används" och slå på "Exakt plats".</div>
+      <div class="divider"></div>
+      <details>
+        <summary>Having trouble with location on iPhone?</summary>
+        <ul class="hint">
+          <li>Use Safari with <b>HTTPS</b> (e.g., GitHub Pages).</li>
+          <li>Tap <b>Start tracking</b> when prompted (iOS requires a user action).</li>
+          <li>Safari &rarr; aA &rarr; Website Settings &rarr; Location: <b>Allow</b>.</li>
+          <li>Settings &rarr; Safari &rarr; Location: <b>While Using</b>.</li>
+        </ul>
+      </details>
     </div>
+
+    <div id="screen-new" class="card" hidden>
+      <h2>New game</h2>
+      <div class="row">
+        <label>Host name
+          <input id="new-host" placeholder="e.g. Anneli" autocomplete="name" />
+        </label>
+      </div>
+      <div class="grid-2">
+        <label>Tag radius (m)
+          <input id="new-radius" type="number" min="5" step="1" value="30" />
+        </label>
+        <label>Require hold to tag (sec)
+          <input id="new-hold" type="number" min="0" step="1" value="2" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="create" class="primary">Create</button>
+        <button class="ghost" data-back>Back</button>
+      </div>
+    </div>
+
+    <div id="screen-join" class="card" hidden>
+      <h2>Join game</h2>
+      <div class="grid-2">
+        <label>Your name
+          <input id="join-name" placeholder="e.g. Ragnar" autocomplete="name" />
+        </label>
+        <label>Game code
+          <input id="join-code" placeholder="e.g. ABC123" class="mono" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="join" class="primary">Join</button>
+        <button class="ghost" data-back>Back</button>
+      </div>
+    </div>
+
+    <div id="screen-lobby" class="card" hidden>
+      <h2>Lobby</h2>
+      <p>Share this code with your friends:</p>
+      <div class="row">
+        <div class="pill mono" id="lobby-code">—</div>
+        <button id="copy-code">Copy</button>
+      </div>
+      <div class="divider"></div>
+      <div id="players" class="hint">Waiting for players…</div>
+      <div class="sticky">
+        <button id="start-game" class="primary">Start game</button>
+      </div>
+    </div>
+
+    <div id="screen-game" class="card" hidden>
+      <h2>Hunt your target</h2>
+      <div class="grid-2">
+        <div class="card">
+          <div class="metric" id="you-distance">—</div>
+          <div class="sub">Distance to target</div>
+        </div>
+        <div class="card">
+          <div class="metric" id="you-acc">—</div>
+          <div class="sub">Your GPS accuracy</div>
+        </div>
+      </div>
+
+      <div class="compass">
+        <div class="northDot"></div>
+        <div class="needle" id="needle"></div>
+      </div>
+      <div class="center hint">Rotate your phone; the needle points toward your target.</div>
+
+      <div class="divider"></div>
+      <div class="grid-2">
+        <div>
+          <p class="sub">You</p>
+          <div class="mono" id="you-pos">—</div>
+        </div>
+        <div>
+          <p class="sub">Target last seen</p>
+          <div class="mono" id="target-pos">—</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="row">
+        <button id="btn-track" class="ghost">Start tracking</button>
+        <button id="btn-tag" class="hold" disabled>Hold to TAG</button>
+      </div>
+      <small class="hint">Tag becomes available when distance ≤ radius and accuracy is reasonable.</small>
+
+      <div class="divider"></div>
+      <div class="grid-2">
+        <div>Radius: <span id="radius" class="pill">—</span></div>
+        <div>Hold: <span id="holdsec" class="pill">—</span></div>
+      </div>
+    </div>
+
+    <div id="screen-winner" class="card center" hidden>
+      <h2>🏆 Winner!</h2>
+      <p>You’re the last one standing.</p>
+      <button data-reset>Play again</button>
+    </div>
+
+    <div id="screen-loser" class="card center" hidden>
+      <h2>😵 Eliminated</h2>
+      <p>You were tagged. Better luck next time.</p>
+      <button data-reset>Play again</button>
+    </div>
+
+    <div id="screen-end" class="card center" hidden>
+      <h2>Game over</h2>
+      <p id="end-msg">Thanks for playing.</p>
+      <button data-reset>New game</button>
+    </div>
+
+    <div class="toast" id="toast"></div>
   </div>
 
   <script>
-    const ui = {
-      start: document.getElementById('start'),
-      stop: document.getElementById('stop'),
-      copy: document.getElementById('copy'),
-      status: document.getElementById('status'),
-      lat: document.getElementById('lat'),
-      lon: document.getElementById('lon'),
-      acc: document.getElementById('acc'),
-      alt: document.getElementById('alt'),
-      altacc: document.getElementById('altacc'),
-      spd: document.getElementById('spd'),
-      head: document.getElementById('head'),
-      ts: document.getElementById('ts'),
-      dbgCount: document.getElementById('dbgCount'),
-      perm: document.getElementById('perm'),
-      permRow: document.getElementById('permRow'),
-      secure: document.getElementById('secure'),
-      origin: document.getElementById('origin'),
-      help: document.getElementById('help')
+  (() => {
+    // ====== CONFIG (align with your backend) ======
+    const API_BASE = "https://api.dingbat.se"; // <- CHANGE THIS to your server
+    // Endpoints (make these match your server routes)
+    const API = {
+      newgame:   () => `${API_BASE}/newgame`,
+      joingame:  () => `${API_BASE}/joingame`,
+      start:     (gameId) => `${API_BASE}/start/${encodeURIComponent(gameId)}`,
+      state:     (gameId, playerId) => `${API_BASE}/state/${encodeURIComponent(gameId)}?player=${encodeURIComponent(playerId)}`,
+      update:    (gameId, playerId) => `${API_BASE}/update/${encodeURIComponent(gameId)}/${encodeURIComponent(playerId)}`,
+      tag:       (gameId, playerId) => `${API_BASE}/tag/${encodeURIComponent(gameId)}/${encodeURIComponent(playerId)}`
     };
 
-    let watchId = null;
-    let last = null;
-    let updates = 0;
+    // Expected server JSON (adjust if yours differs):
+    // POST /newgame {hostName, radiusMeters, holdSeconds} -> {gameId, code, host:{playerId,name}}
+    // POST /joingame {code, name} -> {gameId, player:{playerId,name}, radiusMeters, holdSeconds, started:false}
+    // POST /start/:gameId -> 200
+    // POST /update/:gameId/:playerId {lat,lon,acc,heading} -> 200
+    // POST /tag/:gameId/:playerId {} -> {ok:true} (server checks proximity & eliminates target)
+    // GET  /state/:gameId?player=PID -> {
+    //   code, started, radiusMeters, holdSeconds,
+    //   you:{id,name,alive:boolean,position:{lat,lon,acc,ts}},
+    //   target:{id,name,position:{lat,lon,acc,ts}} | null,
+    //   players:[{id,name,alive:boolean}],
+    //   winner:boolean, loser:boolean, message?:string
+    // }
 
-    function fmt(num, dec=7) {
-      return (typeof num === 'number' && isFinite(num)) ? num.toFixed(dec) : '–';
-    }
+    // ====== Small utilities ======
+    const $ = sel => document.querySelector(sel);
+    const show = id => document.querySelectorAll('[id^="screen-"]').forEach(x => x.hidden = x.id !== id);
+    const toast = (msg, ms=2000) => { const t = $("#toast"); t.textContent = msg; t.style.display='block'; setTimeout(()=>t.style.display='none', ms); };
+    const clamp = (n,min,max)=>Math.max(min,Math.min(max,n));
+    const toFixed = (n, p=1)=> (isFinite(n)? n.toFixed(p) : "—");
+    const degToRad = d=> d*Math.PI/180;
+    const radToDeg = r=> r*180/Math.PI;
+    const haversine = (a,b) => {
+      const R=6371000, dLat=degToRad(b.lat-a.lat), dLon=degToRad(b.lon-a.lon);
+      const s1=Math.sin(dLat/2), s2=Math.sin(dLon/2);
+      const aa=s1*s1 + Math.cos(degToRad(a.lat))*Math.cos(degToRad(b.lat))*s2*s2;
+      return 2*R*Math.asin(Math.sqrt(aa));
+    };
+    const bearing = (a,b) => {
+      // initial bearing from a to b
+      const φ1=degToRad(a.lat), φ2=degToRad(b.lat), λ1=degToRad(a.lon), λ2=degToRad(b.lon), dλ=λ2-λ1;
+      const y=Math.sin(dλ)*Math.cos(φ2);
+      const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(dλ);
+      return (radToDeg(Math.atan2(y,x))+360)%360;
+    };
 
-    function setStatus(text, cls) {
-      ui.status.textContent = text;
-      ui.status.className = cls || '';
-    }
+    // ====== App state ======
+    const state = {
+      gameId:null, code:null,
+      playerId:null, name:null,
+      radius:30, hold:2,
+      started:false,
+      you:null, target:null, players:[],
+      pollTimer:null, trackId:null,
+      lastHeading:0
+    };
 
-    function bumpCounter(){
-      updates++;
-      ui.dbgCount.textContent = `(uppdateringar: ${updates})`;
-    }
+    // ====== DOM refs ======
+    const screens = {
+      welcome: $("#screen-welcome"),
+      new: $("#screen-new"),
+      join: $("#screen-join"),
+      lobby: $("#screen-lobby"),
+      game: $("#screen-game"),
+      winner: $("#screen-winner"),
+      loser: $("#screen-loser"),
+      end: $("#screen-end")
+    };
 
-    function onPos(pos){
-      const c = pos.coords;
-      last = {
-        lat: c.latitude,
-        lon: c.longitude,
-        acc: c.accuracy,
-        alt: c.altitude,
-        altacc: c.altitudeAccuracy,
-        spd: c.speed,
-        head: c.heading,
-        ts: pos.timestamp
-      };
-      ui.lat.textContent = fmt(c.latitude, 7);
-      ui.lon.textContent = fmt(c.longitude, 7);
-      ui.acc.textContent = fmt(c.accuracy, 1);
-      ui.alt.textContent = c.altitude == null ? '–' : fmt(c.altitude, 2);
-      ui.altacc.textContent = c.altitudeAccuracy == null ? '–' : fmt(c.altitudeAccuracy, 1);
-      ui.spd.textContent = c.speed == null ? '–' : fmt(c.speed, 2);
-      ui.head.textContent = c.heading == null ? '–' : fmt(c.heading, 0);
-      ui.ts.textContent = new Date(pos.timestamp).toLocaleString();
-      bumpCounter();
-      setStatus('Aktiv – uppdaterar i realtid', 'ok');
-    }
+    const els = {
+      // welcome
+      btnNew: $("#btn-new"),
+      btnJoin: $("#btn-join"),
+      // new
+      newHost: $("#new-host"),
+      newRadius: $("#new-radius"),
+      newHold: $("#new-hold"),
+      create: $("#create"),
+      // join
+      joinName: $("#join-name"),
+      joinCode: $("#join-code"),
+      joinBtn: $("#join"),
+      // lobby
+      lobbyCode: $("#lobby-code"),
+      copyCode: $("#copy-code"),
+      players: $("#players"),
+      startGame: $("#start-game"),
+      // game
+      youPos: $("#you-pos"),
+      targetPos: $("#target-pos"),
+      youDist: $("#you-distance"),
+      youAcc: $("#you-acc"),
+      btnTrack: $("#btn-track"),
+      btnTag: $("#btn-tag"),
+      radius: $("#radius"),
+      holdsec: $("#holdsec"),
+      needle: $("#needle"),
+      endMsg: $("#end-msg")
+    };
 
-    function onErr(err){
-      console.error('[geo] error', err);
-      setStatus(err.message || 'Platsfel', 'err');
-      if(err.code===1){
-        ui.help.style.display='block';
-        ui.help.innerHTML = `<strong>Så här aktiverar du plats för denna sida:</strong><ul>
-          <li>I Safari: tryck <em>aA</em> vid adressfältet → Webbplatsinställningar → Plats: Tillåt</li>
-          <li>Eller gå till Inställningar → Safari → Inställningar för webbplatser → Plats, hitta din sida och välj Tillåt</li>
-          <li>Om du lagt till sidan på hemskärmen: Inställningar → Integritet & säkerhet → Platstjänster → leta efter din Web App och välj När appen används + Exakt plats</li>
-        </ul>`;
-      }
-    }
-
-    ui.start.addEventListener('click', () => {
-      if (!('geolocation' in navigator)) {
-        setStatus('Den här webbläsaren saknar geolokalisering', 'err');
-        return;
-      }
-      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-        setStatus('Måste köras över HTTPS eller localhost', 'err');
-        return;
-      }
-      if (watchId !== null) return;
-
-      setStatus('Begär plats…', 'warn');
-
-      // iOS-säkert: första getCurrentPosition direkt i klicket
-      navigator.geolocation.getCurrentPosition((first)=>{
-        onPos(first);
-        // Starta kontinuerlig bevakning
-        watchId = navigator.geolocation.watchPosition(onPos, onErr, {
-          enableHighAccuracy: true,
-          maximumAge: 1000,
-          timeout: 20000
-        });
-        ui.start.disabled = true;
-        ui.stop.disabled = false;
-        ui.copy.disabled = false;
-      }, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+    // ====== Navigation ======
+    document.body.addEventListener('click', (e) => {
+      const back = e.target.closest('[data-back]');
+      const reset = e.target.closest('[data-reset]');
+      if (back) { show('screen-welcome'); }
+      if (reset) { location.reload(); }
     });
 
-    ui.stop.addEventListener('click', () => {
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
-      }
-      setStatus('Pausad', 'warn');
-      ui.start.disabled = false;
-      ui.stop.disabled = true;
-    });
+    // ====== Welcome actions ======
+    els.btnNew.addEventListener('click', () => { show('screen-new'); });
+    els.btnJoin.addEventListener('click', () => { show('screen-join'); });
 
-    ui.copy.addEventListener('click', async () => {
-      if (!last) return;
-      const text = `lat=${last.lat}\nlon=${last.lon}\nacc=${last.acc} m\nalt=${last.alt ?? 'n/a'} m\naltAcc=${last.altacc ?? 'n/a'} m\nspeed=${last.spd ?? 'n/a'} m/s\nheading=${last.head ?? 'n/a'}°\nwhen=${new Date(last.ts).toISOString()}`;
+    // ====== Create new game ======
+    els.create.addEventListener('click', async () => {
+      const hostName = (els.newHost.value || "").trim();
+      const radiusMeters = Math.max(5, parseInt(els.newRadius.value || "30", 10));
+      const holdSeconds = Math.max(0, parseInt(els.newHold.value || "2", 10));
+      if (!hostName) return toast("Enter host name");
       try {
-        await navigator.clipboard.writeText(text);
-        setStatus('Kopierat till urklipp', 'ok');
-        setTimeout(()=> setStatus('Aktiv – uppdaterar i realtid', 'ok'), 1200);
-      } catch (e) {
-        setStatus('Kunde inte kopiera', 'err');
+        const res = await fetch(API.newgame(), {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ hostName, radiusMeters, holdSeconds })
+        });
+        if (!res.ok) throw new Error("Failed to create");
+        const data = await res.json();
+        Object.assign(state, {
+          gameId: data.gameId, code: data.code,
+          playerId: data.host?.playerId, name: hostName,
+          radius: data.radiusMeters ?? radiusMeters,
+          hold: data.holdSeconds ?? holdSeconds,
+          started: false
+        });
+        els.lobbyCode.textContent = state.code || "—";
+        els.players.innerHTML = "<em>Waiting for players…</em>";
+        show('screen-lobby');
+        startPolling();
+      } catch (err) {
+        console.error(err); toast("Could not create game");
       }
     });
 
-    function showEnv(){
-      ui.secure.textContent = window.isSecureContext ? 'ja' : 'nej';
-      ui.origin.textContent = location.origin;
+    // ====== Join existing game ======
+    els.joinBtn.addEventListener('click', async () => {
+      const name = (els.joinName.value || "").trim();
+      const code = (els.joinCode.value || "").trim();
+      if (!name || !code) return toast("Enter name and game code");
+      try {
+        const res = await fetch(API.joingame(), {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ name, code })
+        });
+        if (!res.ok) throw new Error("Failed to join");
+        const data = await res.json();
+        Object.assign(state, {
+          gameId: data.gameId, code,
+          playerId: data.player?.playerId, name,
+          radius: data.radiusMeters ?? state.radius,
+          hold: data.holdSeconds ?? state.hold,
+          started: !!data.started
+        });
+        if (state.started) {
+          prepareGameUI();
+          show('screen-game');
+        } else {
+          els.lobbyCode.textContent = code;
+          els.players.innerHTML = "<em>Waiting for host…</em>";
+          show('screen-lobby');
+        }
+        startPolling();
+      } catch (err) {
+        console.error(err); toast("Could not join (wrong code?)");
+      }
+    });
+
+    // ====== Copy code ======
+    els.copyCode.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(state.code || ""); toast("Code copied"); }
+      catch { toast("Copy failed"); }
+    });
+
+    // ====== Host starts the game ======
+    els.startGame.addEventListener('click', async () => {
+      if (!state.gameId) return;
+      try {
+        const res = await fetch(API.start(state.gameId), { method:'POST' });
+        if (!res.ok) throw new Error("Start failed");
+        state.started = true;
+        prepareGameUI();
+        show('screen-game');
+      } catch (e) {
+        console.error(e); toast("Could not start");
+      }
+    });
+
+    // ====== Tracking (requires user gesture on iOS) ======
+    els.btnTrack.addEventListener('click', () => {
+      if (state.trackId) { stopTracking(); return; }
+      startTracking();
+    });
+
+    function startTracking() {
+      if (!('geolocation' in navigator)) return toast("Geolocation not supported");
+      // UI
+      els.btnTrack.textContent = "Stop tracking";
+      els.btnTrack.classList.remove('ghost');
+      // watchPosition
+      const opts = { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 };
+      state.trackId = navigator.geolocation.watchPosition(onPos, onPosErr, opts);
+      toast("Tracking started");
+    }
+    function stopTracking() {
+      if (state.trackId) navigator.geolocation.clearWatch(state.trackId);
+      state.trackId = null;
+      els.btnTrack.textContent = "Start tracking";
+      els.btnTrack.classList.add('ghost');
+      toast("Tracking stopped");
     }
 
-    showEnv();
+    async function onPos(pos) {
+      const { latitude:lat, longitude:lon, accuracy:acc, heading } = pos.coords;
+      const head = Number.isFinite(heading) ? heading : state.lastHeading;
+      state.lastHeading = head;
+      // Update UI
+      els.youPos.textContent = `${lat.toFixed(5)}, ${lon.toFixed(5)}  ±${toFixed(acc,0)}m`;
+      els.youAcc.textContent = `${toFixed(acc,0)} m`;
+      // Send to server (fire & forget)
+      if (state.gameId && state.playerId) {
+        fetch(API.update(state.gameId, state.playerId), {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ lat, lon, acc, heading: head })
+        }).catch(()=>{});
+      }
+    }
+    function onPosErr(err) {
+      console.warn(err);
+      toast(err.code === 1 ? "Location permission denied" : "Location error");
+    }
+
+    // ====== Poll state ======
+    function startPolling() {
+      stopPolling();
+      poll(); // immediate
+      state.pollTimer = setInterval(poll, 2000);
+    }
+    function stopPolling() {
+      if (state.pollTimer) clearInterval(state.pollTimer);
+      state.pollTimer = null;
+    }
+    async function poll() {
+      if (!state.gameId || !state.playerId) return;
+      try {
+        const res = await fetch(API.state(state.gameId, state.playerId));
+        if (!res.ok) throw new Error("bad state");
+        const data = await res.json();
+        state.started = !!data.started;
+        state.radius = data.radiusMeters ?? state.radius;
+        state.hold = data.holdSeconds ?? state.hold;
+        state.players = data.players || [];
+        state.you = data.you || null;
+        state.target = data.target || null;
+
+        if (!state.started) {
+          // Lobby view
+          els.players.innerHTML = state.players.map(p => `${p.alive ? '🟢' : '🔴'} ${escapeHtml(p.name)}`).join('<br/>') || "<em>Waiting…</em>";
+          return;
+        }
+
+        // Game view
+        if (screens.lobby && !screens.lobby.hidden && state.started) {
+          prepareGameUI();
+          show('screen-game');
+        }
+        updateGameUI();
+
+        // End conditions
+        if (data.winner) { stopTracking(); stopPolling(); show('screen-winner'); return; }
+        if (data.loser || (data.you && data.you.alive===false)) { stopTracking(); stopPolling(); show('screen-loser'); return; }
+        if (data.message) { els.endMsg.textContent = data.message; }
+      } catch (e) {
+        // soft-fail; keep trying
+      }
+    }
+
+    function prepareGameUI() {
+      els.radius.textContent = `${state.radius} m`;
+      els.holdsec.textContent = `${state.hold} s`;
+      els.btnTag.disabled = true;
+      els.btnTag.style.setProperty('--hold','0%');
+      bindHoldToTag();
+    }
+
+    function updateGameUI() {
+      const you = state.you?.position;
+      const tgt = state.target?.position;
+      // target info
+      if (tgt) {
+        els.targetPos.textContent = `${tgt.lat.toFixed(5)}, ${tgt.lon.toFixed(5)}  ±${toFixed(tgt.acc,0)}m`;
+      } else {
+        els.targetPos.textContent = "—";
+      }
+      // distance + compass
+      let dist = Infinity;
+      if (you && tgt) {
+        dist = haversine({lat:you.lat,lon:you.lon}, {lat:tgt.lat,lon:tgt.lon});
+        const b = bearing({lat:you.lat,lon:you.lon}, {lat:tgt.lat,lon:tgt.lon});
+        // Rotate needle by relative bearing (device heading vs target bearing)
+        const rel = (b - (state.lastHeading||0) + 360) % 360;
+        els.needle.style.transform = `translate(-50%, -100%) rotate(${rel}deg)`;
+      }
+      els.youDist.textContent = isFinite(dist) ? `${toFixed(dist,1)} m` : "—";
+      // enable TAG if close enough & accuracy fine (< radius*1.5 heuristic)
+      const acc = state.you?.position?.acc ?? Infinity;
+      const ok = isFinite(dist) && dist <= state.radius && acc <= state.radius*1.5;
+      els.btnTag.disabled = !ok;
+      els.btnTag.title = ok ? "Hold to tag!" : "Get closer (or wait for better GPS fix)";
+    }
+
+    function bindHoldToTag() {
+      let iv=null, startT=0;
+      const need = Math.max(0, state.hold) * 1000;
+      const setProg = (ms) => {
+        const p = clamp(ms/need, 0, 1);
+        els.btnTag.style.setProperty('--hold', (p*100)+'%');
+      };
+      const finish = async () => {
+        els.btnTag.disabled = true;
+        els.btnTag.style.setProperty('--hold','0%');
+        try {
+          const res = await fetch(API.tag(state.gameId, state.playerId), { method:'POST' });
+          if (!res.ok) throw new Error("tag failed");
+          toast("Tag sent!");
+        } catch (e) { toast("Tag failed"); }
+      };
+      const clear = () => { if (iv) { clearInterval(iv); iv=null; } setProg(0); };
+
+      const start = () => {
+        if (els.btnTag.disabled) return;
+        startT = Date.now();
+        iv = setInterval(()=>{
+          const elapsed = Date.now()-startT;
+          setProg(elapsed);
+          if (elapsed >= need) { clear(); finish(); }
+        }, 50);
+      };
+
+      ['mousedown','touchstart'].forEach(ev=> els.btnTag.addEventListener(ev, start, {passive:true}));
+      ['mouseup','mouseleave','touchend','touchcancel'].forEach(ev=> els.btnTag.addEventListener(ev, clear, {passive:true}));
+    }
+
+    // ====== Helpers ======
+    function escapeHtml(s){ return (s??"").toString().replace(/[&<>"']/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[c])); }
+
+    // Visibility pause/resume polling (save battery)
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { stopPolling(); }
+      else { startPolling(); }
+    });
+
+    // On load
+    show('screen-welcome');
+  })();
   </script>
 </body>
 </html>
